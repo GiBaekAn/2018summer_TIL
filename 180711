@@ -1,0 +1,233 @@
+//
+//  Client.cpp
+//  Socket_chatting
+//
+//  Created by  MacBook on 2018. 7. 9..
+//  Copyright © 2018년  MacBook. All rights reserved.
+//
+
+#include <stdio.h>
+#include <iostream>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+
+#define  BUFF_SIZE   1024
+
+struct socketStruct {
+    int num;
+    char temp[100];
+};
+
+int   main( int argc, char **argv)
+{
+    int   client_socket;
+    int   pnum;
+    char  addr[20];
+    int   limit;
+    int   flag;
+    char  again;
+    char  input[100];
+    
+    
+    struct sockaddr_in   server_addr;
+    
+    //char   buff[BUFF_SIZE+5];
+    
+    socketStruct tempdata;
+    
+    printf("클라이언트 : 포트 번호를 입력해주세요\n");
+    scanf("%d",&pnum);
+    printf("클라이언트 : IP 주소를 입력해주세요 (self : 127.0.0.1)\n");
+    scanf("%s",addr);
+    
+    do{
+        strcpy(input, "");
+        limit = 0;
+        flag = 0;
+        again = 'n';
+        
+        client_socket  = socket( PF_INET, SOCK_STREAM, 0);
+        if( -1 == client_socket)
+        {
+            printf( "클라이언트 : socket 생성 실패\n");
+            exit( 1);
+        }
+        // 클라이언트 소켓 생성
+        //
+        memset( &server_addr, 0, sizeof( server_addr));
+        server_addr.sin_family     = AF_INET;
+        server_addr.sin_port       = htons( pnum);
+        server_addr.sin_addr.s_addr= inet_addr( addr);
+        // 만들어진 소켓에 정보 할당
+        
+        if( -1 == connect( client_socket, (struct sockaddr*)&server_addr, sizeof( server_addr) ) )
+        {
+            printf( "클라이언트 : 접속 실패\n");
+            exit( 1);
+        }
+        // 서버로의 접속을 시도
+        
+        fflush(stdin);
+        printf("보내고 싶은 횟수를 입력해주세요 (범위 : 1~20) (종료를 원한다면 99)\n");
+        scanf("%d",&limit);
+        printf("%d",limit);
+        
+        while(1){
+            if(limit>0&&limit<21){
+                tempdata.num = limit;
+                break;
+            }
+            if(limit==99){
+                flag = 1;
+                break;
+            }
+            printf("1부터 20까지만 입력 가능합니다.\n");
+            printf("보내고 싶은 횟수를 입력해주세요 (범위 : 1~20) (종료를 원한다면 99)\n");
+            scanf("%d",&limit);
+            while(getchar()!='\n'){
+                getchar();
+            }
+            
+        }
+        
+        if(limit>0&&limit<21){
+            tempdata.num = limit;
+            
+            fflush(stdin);
+            printf("보내고 싶은 문자열을 입력해주세요 (종료를 원한다면 QUIT)\n");
+            scanf("%s",input);
+            printf("%s",input);
+            
+            if(strcmp(input, "QUIT")){
+                strcpy(tempdata.temp, input);
+                
+                write( client_socket, &tempdata, (strlen( tempdata.temp)+1)*tempdata.num);
+                // +1: NULL까지 포함해서 전송
+                
+                read ( client_socket, &tempdata, BUFF_SIZE);
+                //printf("Socket PID : %d\n",client_socket);
+                // 접속에 성공할 경우 데이터 전송
+                
+                // 자료 수신 및 출력
+                //printf( "클라이언트 : %s\n", buff);
+                
+            }//문자열이 QUIT가 아님
+            
+            
+        }//횟수 20범위 이내
+        else{
+            limit = 0;
+        }
+        
+    }while(strcmp(input, "QUIT"));
+    
+    
+    tempdata.num =0;
+    write(client_socket, &tempdata, BUFF_SIZE);
+    
+    printf("통신을 종료합니다\n");
+    close( client_socket);
+    return 0;
+    
+    
+    /////////////////////////////////////////////////////////////////////////////////////
+//
+//    while(again!='Y'&&again!='y'){
+//        strcpy(input, "");
+//        limit = 0;
+//        flag = 0;
+//        again = 'n';
+//
+//        while(strcmp(input, "QUIT")){
+//
+//            client_socket  = socket( PF_INET, SOCK_STREAM, 0);
+//            if( -1 == client_socket)
+//            {
+//                printf( "클라이언트 : socket 생성 실패\n");
+//                exit( 1);
+//            }
+//            // 클라이언트 소켓 생성
+//            //
+//            memset( &server_addr, 0, sizeof( server_addr));
+//            server_addr.sin_family     = AF_INET;
+//            server_addr.sin_port       = htons( pnum);
+//            server_addr.sin_addr.s_addr= inet_addr( addr);
+//            // 만들어진 소켓에 정보 할당
+//
+//            if( -1 == connect( client_socket, (struct sockaddr*)&server_addr, sizeof( server_addr) ) )
+//            {
+//                printf( "클라이언트 : 접속 실패\n");
+//                exit( 1);
+//            }
+//            // 서버로의 접속을 시도
+//            getchar();
+//            printf("보내고 싶은 횟수를 입력해주세요 (범위 : 1~20) (종료를 원한다면 99)\n");
+//            scanf("%d",&limit);
+//
+//            if(limit>0&&limit<21){
+//                flag = 0;
+//                tempdata.num = limit;
+//
+//
+//                printf("보내고 싶은 문자열을 입력해주세요 (종료를 원한다면 QUIT)\n");
+//                scanf("%s",input);
+//
+//                if(strcmp(input, "QUIT")){
+//                    strcpy(tempdata.temp, input);
+//
+//                    write( client_socket, &tempdata, (strlen( tempdata.temp)+1)*tempdata.num);
+//                    // +1: NULL까지 포함해서 전송
+//
+//                    read ( client_socket, &tempdata, BUFF_SIZE);
+//                    //printf("Socket PID : %d\n",client_socket);
+//                    // 접속에 성공할 경우 데이터 전송
+//
+//                    // 자료 수신 및 출력
+//                    //printf( "클라이언트 : %s\n", buff);
+//                }
+//                else{
+//                    flag=1;
+//                    getchar();
+//                    break;
+//                }
+//
+//            }
+//            else{
+//
+//                while(getchar()!='\n'){
+//                    getchar();
+//                }
+//                if(limit!=99){
+//                    printf("1부터 20까지의 횟수만 입력이 가능합니다\n");
+//                }
+//                flag = 1;
+//                if(limit == 99){
+//                    limit = 0;
+//                    break;
+//                }
+//            }
+//            tempdata.num = 0;
+//            limit = 0;
+//            strcpy(input, "");
+//        }
+//
+//        tempdata.num =0;
+//        write(client_socket, &tempdata, BUFF_SIZE);
+//
+//        if(!flag){
+//            getchar();
+//        }
+//        printf("종료하시겠습니까? Y/y : 종료 \n");
+//        scanf("%c",&again);
+//
+//    }
+//    printf("통신을 종료합니다\n");
+//    close( client_socket);
+//    return 0;
+//
+//    
+}
