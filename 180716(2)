@@ -1,0 +1,315 @@
+//  1초마다 server에 string을 전달하는 프로그램
+//
+//  여러가지 방법이 존재하는데, 쓰레드와 타이머를 사용하거나 혹은 비동기식 입력과 sleep함수를 통해 처리가 가능하다.
+//  여기서는 sleep과 kbhit를 사용했는데,
+//  kbhit()함수는 mac os x에서는 conio.h 및 윈도우 함수를 사용할 수 없기 때문에
+//  새로 정의하여 구현하는 방법을 사용했다.
+//
+//  !! close함수의 실행 시점을 정확히 잡아야 오류가 발생하지 않는다 !!
+
+//
+//  c.cpp
+//  cdcd
+//
+//  Created by  MacBook on 2018. 7. 13..
+//  Copyright © 2018년  MacBook. All rights reserved.
+//
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <fcntl.h>
+#include <termios.h>
+#include <term.h>
+#include <curses.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/ioctl.h>
+
+#define  BUFF_SIZE   1024
+
+static struct termios initial_settings, new_settings;
+static int peek_character = -1;
+
+void init_keyboard();
+void close_keyboard();
+int kbhit();
+int readch();
+
+int kbhit(void)
+
+{
+    struct termios oldt, newt;
+    int ch;
+    int oldf;
+    
+    tcgetattr(STDIN_FILENO, &oldt);
+    newt = oldt;
+    newt.c_lflag &= (~(ICANON | ECHO));
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+    oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
+    fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
+
+    ch = getchar();
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+    fcntl(STDIN_FILENO, F_SETFL, oldf);
+
+    if(ch != EOF)
+    {
+        ungetc(ch, stdin);
+        return 1;
+    }
+    return 0;
+    
+}
+
+
+
+int   main( int argc, char **argv)
+{
+    int     client_socket;
+    int     pnum;
+    char    addr[20];
+    int     n;
+    int     flag;
+    int     again;
+    int     count;
+    int     limit;
+    char    input[105];
+    char    senddata[105];
+    char    getdata[105];
+    char    tc;
+    
+    struct sockaddr_in   server_addr;
+    
+   // char   buff[BUFF_SIZE+5];
+    
+    
+    //printf("클라이언트 : 포트 번호를 입력해주세요\n");
+    //scanf("%d",&pnum);
+    //printf("클라이언트 : IP 주소를 입력해주세요 (self : 127.0.0.1)\n");
+    //scanf("%s",addr);
+    pnum = 4000;
+    strcpy(addr, "127.0.0.1");
+   // getchar();
+    
+    
+    memset( &server_addr, 0, sizeof( server_addr));
+    server_addr.sin_family     = AF_INET;
+    server_addr.sin_port       = htons( pnum);
+    server_addr.sin_addr.s_addr= inet_addr( addr);
+    // 만들어진 소켓에 정보 할당
+    
+    do{
+        limit = 0;
+        count = 0;
+        n = 0;
+        flag = 0;
+        strcpy(senddata, "");
+        strcpy(getdata, "");
+        //변수 초기화
+        
+        client_socket  = socket( PF_INET, SOCK_STREAM, 0);
+        if( -1 == client_socket)
+        {
+            printf( "클라이언트 : socket 생성 실패\n");
+            exit( 1);
+        }
+        // 클라이언트 소켓 생성
+        //
+        
+        if( -1 == connect( client_socket, (struct sockaddr*)&server_addr, sizeof( server_addr) ) )
+        {
+            printf( "클라이언트 : 접속 실패\n");
+            exit( 1);
+        }
+        // 서버로의 접속을 시도
+        
+        printf("1초마다 문자열을 전송하겠습니다. (종료를 원한다면 아무키나 누르기) \n");
+        
+        
+    //    if(limit>0&&limit<21&&count==0){
+            //fflush(stdin);
+            printf("보내고 싶은 문자열을 입력해주세요 (최대크기는 100) (종료를 원한다면 QUIT) \n");
+            do{
+                scanf("%c",&input[n]);
+                tc = input[n];
+                n++;
+                if(n>99){
+                    input[n]='\0';
+                    n--;
+                    flag = 1;
+                }
+            }while(tc!='\n');
+            input[n-1] = '\0';
+     //   }
+        if(flag){
+            printf("최대 크기를 초과하였습니다. 초과한 부분은 잘려져 전송됩니다. \n");
+        }
+        
+        if(strcmp(input, "QUIT")){
+            strncpy(senddata, input, n);
+            
+            while(!kbhit()){
+                printf("  클라이언트 : %s\n",senddata);
+                write(client_socket, &senddata, (strlen(senddata)+1));
+                sleep(1);
+               
+                client_socket  = socket( PF_INET, SOCK_STREAM, 0);
+                if( -1 == client_socket)
+                {
+                    printf( "클라이언트 : socket 생성 실패\n");
+                    exit( 1);
+                }
+                // 클라이언트 소켓 생성
+                //
+                
+                if( -1 == connect( client_socket, (struct sockaddr*)&server_addr, sizeof( server_addr) ) )
+                {
+                    printf( "클라이언트 : 접속 실패\n");
+                    exit( 1);
+                }
+                
+            }
+            close(client_socket);
+            //init_keyboard();
+            getchar();
+            printf("중지했습니다. 다시 시작하려면 1을 누르시오.  \n");
+            scanf("%d",&again);
+            if(again!=1){
+                break;
+            }
+            getchar();
+                //read(client_socket,&getdata,BUFF_SIZE);
+                //printf(" 클라이언트 : %s\n",getdata);
+            
+        }
+        
+        else {
+            limit = 0;
+        }
+        
+        
+        
+        
+    }while(strcmp(input, "QUIT"));
+    
+    
+    limit = 0;
+    //write(client_socket, &senddata, 1);
+    printf("\n\r == 통신을 종료합니다 == \n");
+    
+    
+    //close( client_socket);
+    return 0;
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//
+//  s.cpp
+//  cdcd
+//
+//  Created by  MacBook on 2018. 7. 13..
+//  Copyright © 2018년  MacBook. All rights reserved.
+//
+
+#include <iostream>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+
+#define  BUFF_SIZE   1024
+
+int   main( void)
+{
+    int     server_socket;
+    int     client_socket;
+    int     client_addr_size;
+    int     nSockOpt;
+    int     num;
+    char    data[105];
+    char    senddata[105];
+    
+    struct sockaddr_in   server_addr;
+    struct sockaddr_in   client_addr;
+    
+   // char   buff_rcv[BUFF_SIZE+5];
+   // char   buff_snd[BUFF_SIZE+5];
+    
+    server_socket  = socket( PF_INET, SOCK_STREAM, 0); // 소켓 디스크립터
+    
+    if( -1 == server_socket)
+    {
+        printf( "서버 : server socket 생성 실패\n");
+        exit( 1);
+    }
+    // 서버 소켓 생성
+    //
+    
+    
+    //소켓에 주소와 port를 할당하기 위하여 sockaddr_in 구조체 사용
+    memset( &server_addr, 0, sizeof( server_addr));
+    server_addr.sin_family     = AF_INET;               //IPv4
+    server_addr.sin_port       = htons(4000);
+    server_addr.sin_addr.s_addr = htonl(INADDR_ANY);   //32bit IPv4 주소
+    // INADDR_ANY :  시스템 마다 IP가 다르므로 IP를 고정하지 않고 어떠한 IP도 허용
+    
+    nSockOpt = 1;
+    setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &nSockOpt, sizeof(nSockOpt));
+    // 옵션 설정을 통하여 서버의 재사용을 가능하게 만든다.
+    
+    if( -1 == bind( server_socket, (struct sockaddr*)&server_addr, sizeof( server_addr) ) )
+    {
+        printf( "서버 : bind() 실행 에러\n");
+        exit( 1);
+    }
+    // 서버 소켓에 필요한 정보를 할당
+    //
+    
+    
+    if( -1 == listen(server_socket, 5))
+    {
+        printf( "서버 : listen() 실행 실패\n");
+        exit( 1);
+    }
+    // 접속 요청 확인
+    //
+    
+    
+    while( 1)
+    {
+        client_addr_size  = sizeof( client_addr);
+        client_socket     = accept( server_socket, (struct sockaddr*)&client_addr, (socklen_t*)&client_addr_size);
+        // accept를 통하여 클라이언트의 접속 허용, 클라이언트 소켓 생성
+        
+        if ( -1 == client_socket)
+        {
+            printf( "서버 : 클라이언트 연결 수락 실패\n");
+            exit( 1);
+        }
+        
+        strcpy(data, "");
+        read(client_socket,&data,BUFF_SIZE);
+        // 클라이언트로 부터 자료를 읽어들임
+        
+        if(strcmp(data, "QUIT")&&strcmp(data,"")){
+            
+            printf( "서버 received: %s\n", data);
+            
+        }
+        //sprintf( senddata, "%zu : %s", strlen( data), data);   // 수신된 길이를 구하여 전송할 데이터 준비
+       
+       // write( client_socket, senddata, strlen( senddata)+1);          // +1: NULL까지 포함해서 전송
+        
+        close( client_socket);
+        // 클라이언트 소켓을 소멸시켜 통신 종료
+    }
+}
