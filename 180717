@@ -1,0 +1,241 @@
+//  컴퓨터 두 대를 놓고 각각 서버와 클라이언트가 되어 소켓 통신을 진행하는 프로그램을 구현했다.
+//  우선 매우 신기했으며
+//  리눅스, 윈도우가 다른 소켓통신을 하고있다는 점을 통해 조금 더 깊은 공부를 할 수 있었다.
+//  조금 더 low level로 들어간다면 더 어렵겠지만 흥미로울것 같다.
+//  현재 한글이 전송이 되지 않는 문제를 찾아냈으며 이를 해결하는 중이다.
+//
+
+
+
+//
+//  c.cpp
+//  cdcd
+//
+//  Created by  MacBook on 2018. 7. 13..
+//  Copyright © 2018년  MacBook. All rights reserved.
+//
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <fcntl.h>
+#include <termios.h>
+#include <term.h>
+#include <curses.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <locale.h>
+
+#define  BUFF_SIZE   1024
+
+void init_keyboard();
+void close_keyboard();
+int kbhit();
+int readch();
+
+int kbhit(void)
+
+{
+    struct termios oldt, newt;
+    int ch;
+    int oldf;
+    
+    
+    tcgetattr(STDIN_FILENO, &oldt);
+    newt = oldt;
+    newt.c_lflag &= (~(ICANON | ECHO));
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+    oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
+    fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
+    
+    ch = getchar();
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+    fcntl(STDIN_FILENO, F_SETFL, oldf);
+    
+    if(ch != EOF)
+    {
+        ungetc(ch, stdin);
+        return 1;
+    }
+    return 0;
+    
+}
+
+
+
+int   main( int argc, char **argv)
+{
+    int     client_socket;
+    int     pnum;
+    char    addr[20];
+    int     n;
+    int     flag;
+    int     again;
+    int     count;
+    int     limit;
+    char    input[105];
+    char    senddata[105];
+    char    getdata[105];
+    char    tc;
+    
+    struct sockaddr_in   server_addr;
+    
+    //setlocale(LC_ALL, "korean");
+    
+    // char   buff[BUFF_SIZE+5];
+    
+    pnum = 4000;
+    //strcpy(addr, "127.0.0.1");
+    strcpy(addr, "192.168.73.3");
+    /*
+     printf("클라이언트 : 포트 번호를 입력해주세요\n");
+     scanf("%d",&pnum);
+     printf("클라이언트 : IP 주소를 입력해주세요 (self : 127.0.0.1)\n");
+     scanf("%s",addr);
+     getchar();
+     fflush(stdin);
+     // */
+    memset( &server_addr, 0, sizeof( server_addr));
+    server_addr.sin_family     = AF_INET;
+    server_addr.sin_port       = htons( pnum);
+    server_addr.sin_addr.s_addr= inet_addr( addr);
+    // 만들어진 소켓에 정보 할당
+    
+    do{
+        again = 0;
+        limit = 0;
+        count = 0;
+        n = 0;
+        strcpy(senddata, "");
+        strcpy(getdata, "");
+        flag = 0;
+        //변수 초기화
+        
+        client_socket  = socket( PF_INET, SOCK_STREAM, 0);
+        if( -1 == client_socket)
+        {
+            printf( "클라이언트 : socket 생성 실패\n");
+            exit( 1);
+        }
+        // 클라이언트 소켓 생성
+        //
+        
+        if( -1 == connect( client_socket, (struct sockaddr*)&server_addr, sizeof( server_addr) ) )
+        {
+            printf( "클라이언트 : 접속 실패\n");
+            exit( 1);
+        }
+        // 서버로의 접속을 시도
+        
+        
+        printf("1초마다 문자열을 전송하겠습니다. (종료를 원한다면 아무키나 누르기) \n");
+        
+        /*
+         fflush(stdin);
+         printf("\n 보내고 싶은 횟수를 입력해주세요 (범위 : 1~20 ) (종료를 원한다면 99)\n");
+         scanf("%d",&limit);
+         
+         while(1){
+         while(getchar()!='\n'){
+         fflush(stdin);
+         count++;
+         }
+         if(limit>0&&limit<21&&count==0){
+         break;
+         }
+         if(limit == 99){
+         strcpy(input, "QUIT");
+         break;
+         }
+         count = 0;
+         printf("!ERROR!    1부터 20까지만 입력 가능합니다.\n        올바른 입력값을 입력해주세요.\n");
+         printf("\n 보내고 싶은 횟수를 입력해주세요 (범위 : 1~20 ) (종료를 원한다면 99)\n");
+         scanf("%d",&limit);
+         }
+         */
+        
+        //    if(limit>0&&limit<21&&count==0){
+        //fflush(stdin);
+        printf("보내고 싶은 문자열을 입력해주세요 (최대크기는 100) (종료를 원한다면 QUIT) \n");
+        do{
+            scanf("%c",&input[n]);
+            tc = input[n];
+            //if((tc&0x80)==0x80){}
+            n++;
+            if(n>99){
+                input[n]='\0';
+                n--;
+                flag = 1;
+            }
+        }while(tc!='\n');
+        input[n-1] = '\0';
+        //   }
+        if(flag){
+            printf("최대 크기를 초과하였습니다. 초과한 부분은 잘려져 전송됩니다. \n");
+        }
+        
+        printf("%zu",strlen(input));
+        
+        if(!strcmp(input, "QUIT"))
+        {
+            printf("QUIT라는 문자를 보내시려면 1을 눌러주세요. 종료하시려면 아무키나 눌러주세요.\n");
+            scanf("%d",&again);
+            getchar();
+            if(again!=1){
+                break;
+            }
+            limit = 0;
+        }
+        strncpy(senddata, input, n);
+        
+        while(!kbhit()){
+            printf("  클라이언트 : %s\n",senddata);
+            write(client_socket, &senddata, (strlen(senddata)+1));
+            sleep(1);
+            
+            client_socket  = socket( PF_INET, SOCK_STREAM, 0);
+            if( -1 == client_socket)
+            {
+                printf( "클라이언트 : socket 생성 실패\n");
+                exit( 1);
+            }
+            // 클라이언트 소켓 생성
+            //
+            
+            if( -1 == connect( client_socket, (struct sockaddr*)&server_addr, sizeof( server_addr) ) )
+            {
+                printf( "클라이언트 : 접속 실패\n");
+                exit( 1);
+            }
+            
+        }
+        //init_keyboard();
+        getchar();
+        strcpy(senddata, "");
+        write(client_socket, &senddata, (strlen(senddata)+1));
+        printf("중지했습니다. 다시 시작하려면 1을 누르시오.  \n");
+        scanf("%d",&again);
+        if(again!=1){
+            close(client_socket);
+            break;
+        }
+        getchar();
+        //read(client_socket,&getdata,BUFF_SIZE);
+        //printf(" 클라이언트 : %s\n",getdata);
+        
+        
+        close(client_socket);
+        
+    }while(1);
+    
+    limit = 0;
+    //write(client_socket, &senddata, 1);
+    printf("\n\r == 통신을 종료합니다 == \n");
+    
+    
+    //close( client_socket);
+    return 0;
+}
