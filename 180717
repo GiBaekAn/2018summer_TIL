@@ -7,7 +7,15 @@
 //  조금 더 low level로 들어간다면 더 어렵겠지만 흥미로울것 같다.
 //  현재 한글이 전송이 되지 않는 문제를 찾아냈으며 이를 해결하는 중이다.
 //
-
+// http://jaimemin.tistory.com/6?category=953369
+// 윈도우 기반 소켓통신 예제
+// https://stackoverflow.com/questions/34384803/c-undefined-reference-to-wsastartup8
+// 컴파일과정에서 종속성 추가하는 방법
+// http://giyatto.tistory.com/36
+// https://dojang.io/mod/page/view.php?id=770
+// wchar_t의 사용법
+// http://blog.naver.com/PostView.nhn?blogId=babo9880&logNo=110166078713&parentCategoryNo=&categoryNo=&viewDate=&isShowPopularPosts=false&from=postView
+// wchar <-> char 변환
 
 
 //
