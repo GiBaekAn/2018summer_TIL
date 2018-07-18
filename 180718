@@ -1,0 +1,175 @@
+// 하루 종일 한글이 전송되지 않는 현상으로 인해
+// 인코딩과 디코딩, 유니코드, 컴파일러, 링커 등에 대하여 공부하였다.
+// 소켓통신에서 recv 함수 자체를 구현하는 방법이나
+// 인코딩과 디코딩을 통해 따로 받는 방법 등 여러가지 방법이 있지만
+// 현재 진행하고 있는 방법은 코드상에서 진행되어야 하므로
+// 코드상에서 iconv.h를 사용하는 방법을 통해 구현중이다.
+
+// 현재 파일을 읽어오는 것 까지는 구현했지만
+// 한번에 코드상에서 전달하는 부분이 미흡하다.
+
+// -lws2_32
+// C:\MinGW\bin
+
+// iconv -f CP949 -t UTF-8 a.txt > b.txt
+
+//
+/////////////////////////////////////////////////////////////////////////////
+// server.cpp
+/////////////////////////////////////////////////////////////////////////////
+#include <stdio.h>
+#include <stdlib.h>
+#include <winsock.h>
+#include <WinSock2.h>
+#include <locale.h>
+
+
+#pragma comment(lib,"ws2_32.lib")
+
+void ErrorHandling(char *message);
+/*
+  //wchar_t 에서 char 로의 형변환 함수
+char * ConvertWCtoC(wchar_t* str)
+{
+    //반환할 char* 변수 선언
+    char* pStr ;
+
+    //입력받은 wchar_t 변수의 길이를 구함
+    int strSize = WideCharToMultiByte(CP_ACP, 0,str,-1, NULL, 0,NULL, NULL);
+    //char* 메모리 할당
+    pStr = new char[strSize];
+
+    //형 변환
+    WideCharToMultiByte(CP_ACP, 0, str, -1, pStr, strSize, 0,0);
+    return pStr;
+}
+//char 에서 wchar_t 로의 형변환 함수
+wchar_t* ConverCtoWC(char* str)
+{
+    //wchar_t형 변수 선언
+    wchar_t* pStr;
+    //멀티 바이트 크기 계산 길이 반환
+    int strSize = MultiByteToWideChar(CP_ACP, 0,str, -1, NULL, NULL);
+    //wchar_t 메모리 할당
+    pStr = new WCHAR[strSize];
+    //형 변환
+    MultiByteToWideChar(CP_ACP, 0,str, strlen(str)+1, pStr, strSize);
+    return pStr;
+}
+
+char* ANSIToUTF8(const char * pszCode)
+{
+	int		nLength, nLength2;
+	BSTR	bstrCode;
+	char*	pszUTFCode = NULL;
+
+	nLength = MultiByteToWideChar(CP_ACP, 0, pszCode, lstrlen(pszCode), NULL, NULL);
+	bstrCode = SysAllocStringLen(NULL, nLength);
+	MultiByteToWideChar(CP_ACP, 0, pszCode, lstrlen(pszCode), bstrCode, nLength);
+
+	nLength2 = WideCharToMultiByte(CP_UTF8, 0, bstrCode, -1, pszUTFCode, 0, NULL, NULL);
+	pszUTFCode = (char*)malloc(nLength2+1);
+	WideCharToMultiByte(CP_UTF8, 0, bstrCode, -1, pszUTFCode, nLength2, NULL, NULL);
+
+	return pszUTFCode;
+}
+*/
+
+int main(int argc, char *argv[])
+
+{
+        WSADATA wsaData;
+        SOCKET hServSock, hClntSock;
+        SOCKADDR_IN servAddr, clntAddr;
+		setlocale(LC_ALL,"korean");
+
+        int szClntAddr;
+		int strLen;
+        char message[105];
+		//wchar_t msg[105];
+		FILE *f;
+		//unichar unimsg[105];
+
+		//bzero(unimsg,sizeof(unimsg));
+		//memcpy(unimsg,msg,sizeof(msg));
+		//NSString *temp = (NSString*)CFStringCreateWithCString(NULL,unimsg,kCFStringEncodingUTF8);
+
+                f = fopen("akb.txt","r");
+				fscanf(f,message);
+				printf("%s\n",message);
+				fclose(f);
+
+
+        if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) //소켓 라이브러리 초기화
+               ErrorHandling("WSAStartup() error!");
+        hServSock = socket(PF_INET, SOCK_STREAM, 0); //소켓생성
+        if (hServSock == INVALID_SOCKET)
+               ErrorHandling("socket() error");
+
+        memset(&servAddr, 0, sizeof(servAddr));
+        servAddr.sin_family = AF_INET;
+        servAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+        servAddr.sin_port = htons(4000);
+
+        if (bind(hServSock, (SOCKADDR*)&servAddr, sizeof(servAddr)) == SOCKET_ERROR) //소켓에 IP주소와 PORT 번호 할당
+               ErrorHandling("bind() error");
+        if (listen(hServSock, 5) == SOCKET_ERROR) //listen 함수호출을 통해서 생성한 소켓을 서버 소켓으로 완성
+               ErrorHandling("listen() error");
+
+        printf("안녕하세요");
+		while(1){
+			szClntAddr = sizeof(clntAddr);
+			hClntSock = accept(hServSock, (SOCKADDR*)&clntAddr, &szClntAddr); //클라이언트 연결요청 수락하기 위해 accept함수 호출
+			if (hClntSock == INVALID_SOCKET){
+				ErrorHandling("accept() error");
+			}
+			strLen = recv(hClntSock, (message), sizeof(message) -1 , 0);
+
+			if(strcmp(message,"")){
+
+
+				f = fopen("a.txt","w");
+				fprintf(f,message);
+				fclose(f);
+
+				f = fopen("a.txt","r");
+				fscanf(f,message);
+				printf("%s\n",message);
+				fclose(f);
+
+				printf(" 서버 received : %s\n",message);
+				//for(int a=0;a<strLen-1;a++){
+
+					//if((message[a] & 0x80)==0x80) {
+						//printf("Yes : %d   ",a);
+						//printf("%c%c%c ",message[a],message[a+1],message[a+2]);
+						//a = a+2;
+						//printf("%c%c ",message[a]&0xff,message[a+1]&0xff);
+
+						//printf("%c%c ",message[a],message[a+1]);
+						//a++;
+					//}
+					//else{
+					//}
+				//}
+				printf("\n");
+			}
+			if(strLen == -1)
+			ErrorHandling("read() error!");
+			//send(hClntSock, message, sizeof(message), 0); //send함수 호출을 통해서 연결된 클라이언트에 데이터를 전송
+			//closesocket(hClntSock);
+		}
+
+        WSACleanup(); //프로그램 종료 전에 초기화한 소켓 라이브러리 해제
+        return 0;
+}
+
+
+
+void ErrorHandling(char *message)
+
+{
+        fputs(message, stderr);
+        fputc('\n', stderr);
+        exit(1);
+}
