@@ -1,0 +1,75 @@
+#include <windows.h>
+#include <stdio.h>
+#include <string.h>
+#include <winsock.h>
+#include <winsock2.h>
+#include <commctrl.h>
+#include "resource.h"
+
+HINSTANCE hInst;
+HWND hEdit,s_wd,r1,r2,r3;
+char str[128];
+char *myip;
+
+void getIPaddr(){
+    WORD w;
+    WSADATA wsa;
+    char name[255];
+    PHOSTENT host;
+    w = MAKEWORD(2,0);
+    if(WSAStartup(w,&wsa)==0){
+        if(gethostname(name,sizeof(name))==0){
+            if((host=gethostbyname(name))!=NULL){
+                myip = inet_ntoa(*(struct in_addr*)*host->h_addr_list);
+            }
+        }
+    }
+    //printf("%s\n",ip);
+}
+
+BOOL CALLBACK DlgMain(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    switch(uMsg)
+    {
+    case WM_INITDIALOG:
+    {
+
+    CreateWindow(TEXT("button"),TEXT("SERVER or CLIENT"),WS_CHILD|WS_VISIBLE|BS_GROUPBOX,20,20,100,25,hwndDlg,(HMENU)0,hInst,NULL);
+    r1 = CreateWindow("button","NONE",WS_CHILD|WS_VISIBLE|BS_AUTORADIOBUTTON|WS_GROUP,20,50,100,25,hwndDlg,(HMENU)1,hInst,NULL);
+    r2 = CreateWindow("button","SERVER",WS_CHILD|WS_VISIBLE|BS_AUTORADIOBUTTON|WS_GROUP,20,80,100,25,hwndDlg,(HMENU)2,hInst,NULL);
+    r3 = CreateWindow("button","CLIENT",WS_CHILD|WS_VISIBLE|BS_AUTORADIOBUTTON|WS_GROUP,20,110,100,25,hwndDlg,(HMENU)3,hInst,NULL);
+    CheckRadioButton(hwndDlg,0,3,1);
+    //CreateWindow(TEXT("button"),TEXT("CLIENT"),WS_CHILD|WS_VISIBLE|BS_GROUPBOX,20,50,100,25,hwndDlg,(HMENU)1,hInst,NULL);
+    hEdit = CreateWindow("edit",NULL,WS_CHILD|WS_VISIBLE|WS_BORDER|ES_AUTOHSCROLL,200,200,100,25,hwndDlg,(HMENU)3,hInst,NULL);
+    }
+    return TRUE;
+
+    case WM_CLOSE:
+    {
+        EndDialog(hwndDlg, 0);
+    }
+    return TRUE;
+
+    case WM_COMMAND:
+    {
+        switch(LOWORD(wParam))
+        {
+        case 0:
+            getIPaddr();
+            s_wd = CreateWindow(TEXT("hInst"),TEXT(myip),WS_CHILD|WS_VISIBLE|BS_PUSHBUTTON,80,80,100,25,hwndDlg,(HMENU)3,hInst,NULL);
+            ShowWindow(s_wd,SW_SHOW);
+            //MessageBox(hwndDlg,TEXT(myip),TEXT("SERVER"),MB_OK);
+        }
+    }
+    return TRUE;
+    }
+    return FALSE;
+}
+
+
+int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
+{
+    hInst=hInstance;
+    InitCommonControls();
+    return DialogBox(hInst, MAKEINTRESOURCE(DLG_MAIN), NULL, (DLGPROC)DlgMain);
+}
