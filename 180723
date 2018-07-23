@@ -6,6 +6,9 @@
 
 ////////////////////////////////////////////////////////////////////////////
 
+//  http://it-han1man.tistory.com/49
+//  # 소켓 - 서버클라이언트 winapi
+
 
 #if defined(UNICODE) && !defined(_UNICODE)
     #define _UNICODE
