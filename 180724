@@ -1,0 +1,456 @@
+//  winapi를 사용하여 client - server 프로그램을 만드는 중(3일차)
+//  현재 데이터를 전달하고 전달받는 과정과 UI는 모두 구현했으며
+//  남은 부분은 데이터 형태를 hex형태로 구현하는 것과 닉네임을 전달하는 과정이 조금 남았다.
+//  또한 아직 오류가 몇 가지 있어서 디버깅을 하는 과정 또한 필요할 것 같다.
+//  
+///////////////////////////////////////////////////////////////////////
+
+#if defined(UNICODE) && !defined(_UNICODE)
+    #define _UNICODE
+#elif defined(_UNICODE) && !defined(UNICODE)
+    #define UNICODE
+#endif
+
+#include <tchar.h>
+#include <windows.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <process.h>
+#include <winsock.h>
+#include <winsock2.h>
+#include <commctrl.h>
+#pragma comment(lib,"ws2_32.lib")
+#define BUFSIZE 100
+
+/*  Declare Windows procedure  */
+LRESULT CALLBACK WindowProcedure (HWND, UINT, WPARAM, LPARAM);
+
+/*  Make the class name into a global variable  */
+TCHAR szClassName[ ] = _T("CodeBlocksWindowsApp");
+
+
+HINSTANCE hInst;
+HWND h_main,c1,c2,c3,c4,c5,c6,c7,c8,c9,s1,s2,s3,s4,s5,r1,r2,r3,r4,test;
+char str[128];
+char nickname[100] = "guest";
+char ip_static[20];
+char c_addr[20];
+char c_pnum[10];
+char *myip;
+int error=0;
+int  y;
+int  x;
+int     client_socket;
+int click=0;
+HDC hdc;
+char buff[200] ={0,};
+int szClntAddr;
+int strLen;
+int i=0;
+WSADATA wsaData;
+SOCKET hServSock, hClntSock, clntSock, servSock;
+SOCKADDR_IN servAddr, clntAddr;
+HANDLE hMutex;
+int clntNum = 0;
+SOCKET clntSocks[10];
+
+void client(int pnum1,char *addr1,char *abc,char *nick){
+    int     pnum;
+    char    addr[20];
+    int     n;
+    int     flag;
+    int     again;
+    int     count;
+    int     limit;
+    char    input[105];
+    char    senddata[105];
+    char    getdata[105];
+    char    tc;
+    struct sockaddr_in   server_addr;
+    //pnum = 4000;
+    //strcpy(addr, "192.168.73.79");
+
+    pnum = pnum1;
+    strcpy (addr,addr1);
+    memset( &server_addr, 0, sizeof( server_addr));
+    server_addr.sin_family     = AF_INET;
+    server_addr.sin_port       = htons( pnum);
+    server_addr.sin_addr.s_addr= inet_addr( addr);
+    // 만들어진 소켓에 정보 할당
+
+        again = 0;
+        limit = 0;
+        count = 0;
+        n = 0;
+        strcpy(senddata, "");
+        strcpy(getdata, "");
+        flag = 0;
+        //변수 초기화
+        client_socket  = socket( PF_INET, SOCK_STREAM, 0);
+        if( -1 == client_socket)
+        {
+            printf( "Client : socket() make error! \n");
+            MessageBox(h_main,"socket() make error!!","ERROR",MB_OK);
+            error = 1;
+        }
+        // 클라이언트 소켓 생성
+        //
+        if( -1 == connect( client_socket, (struct sockaddr*)&server_addr, sizeof( server_addr) ) )
+        {
+            printf( "Client : Connect() error! \n");
+            MessageBox(h_main,"Connect() error!!","ERROR",MB_OK);
+            error = 1;
+        }
+        // 서버로의 접속을 시도
+        strcpy(senddata, abc);
+        strcpy(nickname,nick);
+        printf("  Client : %s\n",senddata);
+        send(client_socket, senddata, (strlen(senddata)+1),0);
+        client_socket  = socket( PF_INET, SOCK_STREAM, 0);
+
+        limit = 0;
+    //write(client_socket, &senddata, 1);
+    //closesocket( client_socket);
+}
+
+
+//////////////////
+
+void SendMSG(char *msg,int l){
+    int pp;
+    WaitForSingleObject(hMutex,INFINITE);
+    for(pp=0;pp<clntNum;pp++)
+        send(clntSocks[pp],msg,l,0);
+    ReleaseMutex(hMutex);
+}
+
+void OnReceive(void * arg){
+    SOCKET clntSock = (SOCKET)arg;
+    int strLen = 0;
+    char message[BUFSIZE] = {0,};
+    int k;
+    while(((strLen=recv(clntSock,message,BUFSIZE,0))>0)&&(strcmp("",message))){
+        HDC hdc;
+        hdc = GetDC(h_main);
+        TextOut(hdc,x,y,nickname,strlen(nickname)+1);
+        TextOut(hdc,x+(strlen(nickname)*8),y,":  ",4);
+        TextOut(hdc,x+(strlen(nickname)*10),y,message,strlen(message));
+        TextOut(hdc,x,y+18,ip_static,strlen(ip_static));
+        ReleaseDC(h_main,hdc);
+        y +=40;
+        message[strLen]=0;
+        //printf("%s",message);
+        SendMSG(message,strLen);
+    }
+    WaitForSingleObject(hMutex,INFINITE);
+    for(k=0;k<clntNum;k++){
+        if(clntNum == clntSocks[k]){
+            for(;k<clntNum-1;k++)
+                clntSocks[k] = clntSocks[i+1];
+            break;
+        }
+    }
+    clntNum--;
+    ReleaseMutex(hMutex);
+    closesocket(clntSock);
+}
+
+void OnAccept(void * vp){
+    while(click==2){
+        SOCKADDR_IN clntAddr;
+        int clntAddrSize = sizeof(clntAddr);
+        clntSock = accept(hServSock,(SOCKADDR*)&clntAddr,&clntAddrSize);
+        if(clntSock==INVALID_SOCKET){
+            // accept error!
+            _sleep(1000);
+        }
+        strcpy(ip_static,inet_ntoa(clntAddr.sin_addr));
+        WaitForSingleObject(hMutex,INFINITE);
+        clntSocks[clntNum++]=clntSock;
+        ReleaseMutex(hMutex);
+        ////
+        //printf("%s",buff);
+        _beginthread(OnReceive,0,(void*)clntSock);
+    }
+}
+////////////////////
+void getIPaddr(){
+    WORD w;
+    WSADATA wsa;
+    char name[255];
+    PHOSTENT host;
+    w = MAKEWORD(2,0);
+    if(WSAStartup(w,&wsa)==0){
+        if(gethostname(name,sizeof(name))==0){
+            if((host=gethostbyname(name))!=NULL){
+                myip = inet_ntoa(*(struct in_addr*)*host->h_addr_list);
+            }
+        }
+    }
+    //printf("%s\n",myip);
+}
+/*
+int CALLBACK server(void)
+{
+			szClntAddr = sizeof(clntAddr);
+			hClntSock = accept(hServSock, (SOCKADDR*)&clntAddr, &szClntAddr); //클라이언트 연결요청 수락하기 위해 accept함수 호출
+			if (hClntSock == INVALID_SOCKET){
+				printf("accept() error");
+			}
+			strLen = recv(hClntSock, (message), sizeof(message) -1 , 0);
+			if(strcmp(message,"")){
+				printf(" 서버 received : %s\n",message);
+				printf("\n");
+			}
+			if(strLen == -1)
+			printf("read() error!");
+        //WSACleanup(); //프로그램 종료 전에 초기화한 소켓 라이브러리 해제
+       // return 0;
+}
+
+void CALLBACK Timerproc(HWND hwnd,UINT uMsg,UINT idEvent, DWORD dwTime){
+    HDC hdc;
+   // /*
+    szClntAddr = sizeof(clntAddr);
+    hClntSock = accept(hServSock, (SOCKADDR*)&clntAddr, &szClntAddr); //클라이언트 연결요청 수락하기 위해 accept함수 호출
+    if (hClntSock == INVALID_SOCKET){
+        printf("accept() error");
+    }
+    strLen = recv(hClntSock, (message), sizeof(message) -1 , 0);
+    if(strcmp(message,"")){
+        printf(" 서버 received : %s\n",message);
+        printf("\n");
+    }
+    if(strLen == -1){
+        printf("read() error!");
+    }
+    //
+    printf("%d",i);
+    i++;
+    hdc = GetDC(hwnd);
+    ReleaseDC(hwnd,hdc);
+}
+*/
+int WINAPI WinMain (HINSTANCE hThisInstance,
+                     HINSTANCE hPrevInstance,
+                     LPSTR lpszArgument,
+                     int nCmdShow)
+{
+    //HWND hwnd;               /* This is the handle for our window */
+    MSG messages;            /* Here messages to the application are saved */
+    WNDCLASSEX wincl;        /* Data structure for the windowclass */
+
+    /* The Window structure */
+    wincl.hInstance = hThisInstance;
+    wincl.lpszClassName = szClassName;
+    wincl.lpfnWndProc = WindowProcedure;      /* This function is called by windows */
+    wincl.style = CS_DBLCLKS;                 /* Catch double-clicks */
+    wincl.cbSize = sizeof (WNDCLASSEX);
+
+    /* Use default icon and mouse-pointer */
+    wincl.hIcon = LoadIcon (NULL, IDI_APPLICATION);
+    wincl.hIconSm = LoadIcon (NULL, IDI_APPLICATION);
+    wincl.hCursor = LoadCursor (NULL, IDC_ARROW);
+    wincl.lpszMenuName = NULL;                 /* No menu */
+    wincl.cbClsExtra = 0;                      /* No extra bytes after the window class */
+    wincl.cbWndExtra = 0;                      /* structure or the window instance */
+    /* Use Windows's default colour as the background of the window */
+    wincl.hbrBackground = (HBRUSH) COLOR_BACKGROUND;
+
+    /* Register the window class, and if it fails quit the program */
+    if (!RegisterClassEx (&wincl))
+        return 0;
+
+    /* The class is registered, let's create the program*/
+    h_main = CreateWindowEx (
+           0,                   /* Extended possibilites for variation */
+           szClassName,         /* Classname */
+           _T("Code::Blocks Template Windows App :: CLIENT - SERVER (using WINAPI)"),       /* Title Text */
+           WS_OVERLAPPEDWINDOW, /* default window */
+           CW_USEDEFAULT,       /* Windows decides the position */
+           CW_USEDEFAULT,       /* where the window ends up on the screen */
+           800,                 /* The programs width */
+           800,                 /* and height in pixels */
+           HWND_DESKTOP,        /* The window is a child-window to desktop */
+           NULL,                /* No menu */
+           hThisInstance,       /* Program Instance handler */
+           NULL                 /* No Window Creation data */
+           );
+            getIPaddr();
+            CreateWindow("button",TEXT("MODE"),WS_CHILD|WS_VISIBLE|BS_GROUPBOX,20,20,100,120,h_main,(HMENU)0,hInst,NULL);
+            r1 = CreateWindow("button","NONE",WS_CHILD|WS_VISIBLE|BS_AUTORADIOBUTTON|WS_GROUP,30,50,70,25,h_main,(HMENU)1,hInst,NULL);
+            r2 = CreateWindow("button","SERVER",WS_CHILD|WS_VISIBLE|BS_AUTORADIOBUTTON,30,80,75,25,h_main,(HMENU)2,hInst,NULL);
+            r3 = CreateWindow("button","CLIENT",WS_CHILD|WS_VISIBLE|BS_AUTORADIOBUTTON,30,110,70,25,h_main,(HMENU)3,hInst,NULL);
+            CheckRadioButton(h_main,1,3,1);
+            r4 = CreateWindow("button","QUIT",WS_CHILD|WS_VISIBLE|BS_PUSHBUTTON,30,150,50,20,h_main,(HMENU)11,hInst,NULL);
+            //CreateWindow(TEXT("button"),TEXT("CLIENT"),WS_CHILD|WS_VISIBLE|BS_GROUPBOX,20,50,100,25,hwndDlg,(HMENU)1,hInst,NULL);
+
+    /* Make the window visible on the screen */
+    ShowWindow (h_main, nCmdShow);
+    /* Run the message loop. It will run until GetMessage() returns 0 */
+    while (GetMessage (&messages, NULL, 0, 0))
+    {
+        /* Translate virtual-key messages into character messages */
+        TranslateMessage(&messages);
+        /* Send message to WindowProcedure */
+        DispatchMessage(&messages);
+    }
+    /* The program return-value is 0 - The value that PostQuitMessage() gave */
+    return messages.wParam;
+}
+
+
+/*  This function is called by the Windows function DispatchMessage()  */
+
+LRESULT CALLBACK WindowProcedure (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    hdc = GetDC(h_main);
+    HBRUSH mybrush;
+    mybrush = (HBRUSH)GetStockObject(RGB(5,0,0));
+    SelectObject(hdc,mybrush);
+    switch (message)                  /* handle the messages */
+    {
+        case WM_INITDIALOG:
+        {
+        }
+         case WM_COMMAND:
+        {
+            switch(LOWORD(wParam))
+            {
+            case 1:     // NONE MODE
+                if(click!=1){
+                    ShowWindow(c1,SW_HIDE);
+                    ShowWindow(c2,SW_HIDE);
+                    ShowWindow(c3,SW_HIDE);
+                    ShowWindow(c4,SW_HIDE);
+                    ShowWindow(c5,SW_HIDE);
+                    ShowWindow(c6,SW_HIDE);
+                    ShowWindow(c7,SW_HIDE);
+                    ShowWindow(c8,SW_HIDE);
+                    ShowWindow(c9,SW_HIDE);
+                    ShowWindow(s1,SW_HIDE);
+                    ShowWindow(s2,SW_HIDE);
+                    ShowWindow(s3,SW_HIDE);
+                    InvalidateRect(h_main,NULL,TRUE);
+                }
+                click = 1;
+                //KillTimer(h_main,1);
+                closesocket(hServSock);
+               // WSACleanup();
+               break;
+            case 2:     // SERVER MODE
+                if(click!=2){
+                    x=200;
+                    y=80;
+                    ShowWindow(c1,SW_HIDE);
+                    ShowWindow(c2,SW_HIDE);
+                    ShowWindow(c3,SW_HIDE);
+                    ShowWindow(c4,SW_HIDE);
+                    ShowWindow(c5,SW_HIDE);
+                    ShowWindow(c6,SW_HIDE);
+                    ShowWindow(c7,SW_HIDE);
+                    ShowWindow(c8,SW_HIDE);
+                    ShowWindow(c9,SW_HIDE);
+                    //Rectangle(hdc,135,45,500,500);
+                    InvalidateRect(h_main,NULL,TRUE);
+                    s1 = CreateWindow("static","IP addr :",WS_CHILD|WS_VISIBLE,140,50,60,20,h_main,NULL,hInst,NULL);
+                    s2 = CreateWindow("static",myip,WS_CHILD|WS_VISIBLE,200,50,100,20,h_main,(HMENU)5,hInst,NULL);
+                    s3 = CreateWindow("static","MSG : ",WS_CHILD|WS_VISIBLE,140,80,50,20,h_main,NULL,hInst,NULL);
+                    //TextOut(hdc,140,50,"IP addr : ",10);
+                    //TextOut(hdc,200,50,myip,strlen(myip));
+                    //TextOut(hdc,140,80,"받은 메시지 : ",14);
+                    //server();
+                    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0){ //소켓 라이브러리 초기화
+                        MessageBox(h_main,"WSAStartup() error!!","ERROR",MB_OK);
+                        error = 1;
+                    }
+                    hMutex = CreateMutex(NULL,FALSE,NULL);
+                    if(hMutex==NULL){
+                        MessageBox(h_main,"CreateMutex()error!!","ERROR",MB_OK);
+                        printf("CreateMutex()error!");
+                        error = 1;
+                    }
+                    hServSock = socket(PF_INET, SOCK_STREAM, 0); //소켓생성
+                    if (hServSock == INVALID_SOCKET){
+                        MessageBox(h_main,"socket() error!!","ERROR",MB_OK);
+                        printf("socket() error");
+                        error = 1;
+                    }
+                    memset(&servAddr, 0, sizeof(servAddr));
+                    servAddr.sin_family = AF_INET;
+                    servAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+                    servAddr.sin_port = htons(4000);
+
+                    if (bind(hServSock, (SOCKADDR*)&servAddr, sizeof(servAddr)) == SOCKET_ERROR){ //소켓에 IP주소와 PORT 번호 할당
+                        MessageBox(h_main,"bind() error!!","ERROR",MB_OK);
+                        printf("bind() error");
+                        error = 1;
+                    }
+                    if (listen(hServSock, 5) == SOCKET_ERROR){ //listen 함수호출을 통해서 생성한 소켓을 서버 소켓으로 완성
+                        MessageBox(h_main,"listen() error!!","ERROR",MB_OK);
+                        printf("listen() error");
+                        error = 1;
+                    }
+                    if(error==0){
+                        printf(" SERVER START ");
+                    }
+                    _beginthread(OnAccept,0,(void*)h_main);
+                    //SetTimer(h_main,1,500,(TIMERPROC)Timerproc);
+                }
+                click = 2;
+                break;
+                //MessageBox(hwndDlg,TEXT(myip),TEXT("SERVER"),MB_OK);
+
+            case 3:     // CLIENT MODE
+                if(click!=3){
+                    ShowWindow(s1,SW_HIDE);
+                    ShowWindow(s2,SW_HIDE);
+                    ShowWindow(s3,SW_HIDE);
+                    InvalidateRect(h_main,NULL,TRUE);
+                    c1 = CreateWindow("static","dest IP",WS_CHILD|WS_VISIBLE|WS_BORDER|ES_AUTOHSCROLL,140,50,100,20,h_main,NULL,hInst,NULL);
+                    c3 = CreateWindow("static","Port",WS_CHILD|WS_VISIBLE|WS_BORDER|ES_AUTOHSCROLL,140,80,100,20,h_main,NULL,hInst,NULL);
+                    c5 = CreateWindow("static","Message",WS_CHILD|WS_VISIBLE|WS_BORDER|ES_AUTOHSCROLL,140,110,100,20,h_main,NULL,hInst,NULL);
+                    c7 = CreateWindow("static","NickName",WS_CHILD|WS_VISIBLE|WS_BORDER|ES_AUTOHSCROLL,140,140,100,20,h_main,NULL,hInst,NULL);
+
+                    c2 = CreateWindow("edit","192.168.73.79",WS_CHILD|WS_VISIBLE|WS_BORDER|ES_AUTOHSCROLL,210,50,150,20,h_main,(HMENU)4,hInst,NULL);
+                    c4 = CreateWindow("edit","4000",WS_CHILD|WS_VISIBLE|WS_BORDER,210,80,150,20,h_main,(HMENU)4,hInst,NULL);
+                    c6 = CreateWindow("edit",NULL,WS_CHILD|WS_VISIBLE|WS_BORDER|ES_AUTOHSCROLL,210,110,150,20,h_main,(HMENU)4,hInst,NULL);
+                    c8 = CreateWindow("edit","guest",WS_CHILD|WS_VISIBLE|WS_BORDER,210,140,150,20,h_main,(HMENU)4,hInst,NULL);
+
+                    c9 = CreateWindow("button","SEND",WS_CHILD|WS_VISIBLE|BS_PUSHBUTTON,210,170,50,20,h_main,(HMENU)10,hInst,NULL);
+                }
+                click = 3;
+                //KillTimer(h_main,1);
+                closesocket(hServSock);
+                //WSACleanup();
+                break;
+
+            case 10:    // SEND button
+                GetWindowText(c6,str,128);
+                GetWindowText(c2,c_addr,20);
+                GetWindowText(c4,c_pnum,20);
+                GetWindowText(c8,nickname,100);
+
+                client(atoi(c_pnum),c_addr,str,nickname);
+
+                if(error==0) MessageBox(h_main,"SEND!","MSG",MB_OK);
+                closesocket(client_socket);
+                break;
+
+            case 11:    // QUIT button
+                //KillTimer(h_main,1);
+                WSACleanup();
+                PostQuitMessage(0);
+            }
+
+        }
+        case WM_DESTROY:
+            //PostQuitMessage (0);       /* send a WM_QUIT to the message queue */
+            break;
+        default:                      /* for messages that we don't deal with */
+            return DefWindowProc (hwnd, message, wParam, lParam);
+    }
+
+    return 0;
+}
