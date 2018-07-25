@@ -5,8 +5,6 @@
 //
 ///////////////////////////////////////////////////////////////////////////
 
-
-
 #if defined(UNICODE) && !defined(_UNICODE)
     #define _UNICODE
 #elif defined(_UNICODE) && !defined(UNICODE)
@@ -350,7 +348,7 @@ LRESULT CALLBACK WindowProcedure (HWND hwnd, UINT message, WPARAM wParam, LPARAM
 
                     c7 = CreateWindow("button","SEND",WS_CHILD|WS_VISIBLE|BS_PUSHBUTTON,140,150,100,50,h_main,(HMENU)10,hInst,NULL);
                     c8 = CreateWindow("button","SEND per 1sec",WS_CHILD|WS_VISIBLE|BS_PUSHBUTTON,250,150,110,50,h_main,(HMENU)12,hInst,NULL);
-                    c9 = CreateWindow("button","STOP SENDING",WS_CHILD|WS_VISIBLE|BS_PUSHBUTTON,250,220,110,50,h_main,(HMENU)13,hInst,NULL);
+                    c9 = CreateWindow("button","STOP SENDING",WS_CHILD|WS_VISIBLE|BS_PUSHBUTTON,250,150,110,50,h_main,(HMENU)13,hInst,NULL);
                     ShowWindow(c9,SW_HIDE);
                 }
                 click = 3;
@@ -381,6 +379,7 @@ LRESULT CALLBACK WindowProcedure (HWND hwnd, UINT message, WPARAM wParam, LPARAM
                 if(error==0){
                     if(MessageBox(h_main,"1초마다 전송하시겠습니까?","MSG",MB_YESNO)==IDYES){
                         ShowWindow(c9,SW_SHOW);
+                        ShowWindow(c8,SW_HIDE);
                         _beginthread(persec,0,(void *)h_main);
                     }
                 }
@@ -389,6 +388,7 @@ LRESULT CALLBACK WindowProcedure (HWND hwnd, UINT message, WPARAM wParam, LPARAM
             case 13:    // STOP PER SEC button
                 click = 0;
                 ShowWindow(c9,SW_HIDE);
+                ShowWindow(c8,SW_SHOW);
                 break;
 
         }
@@ -402,3 +402,4 @@ LRESULT CALLBACK WindowProcedure (HWND hwnd, UINT message, WPARAM wParam, LPARAM
     return 0;
 }
 }
+
